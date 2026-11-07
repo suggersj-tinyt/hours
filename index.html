@@ -1,0 +1,465 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>My Hours</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Hours">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#1f5f5b">
+<style>
+  :root {
+    --bg: #f6f5f1; --card: #ffffff; --ink: #1d1d1b; --muted: #6b6a66; --line: #e3e1da;
+    --accent: #1f5f5b; --accent-ink: #ffffff; --warn-bg: #fff3e0; --warn: #9a4b00; --bad: #b3261e;
+    --ok: #2e7d32;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #121413; --card: #1c1f1e; --ink: #ecece8; --muted: #a2a29c; --line: #2f3331;
+      --accent: #5fb3a9; --accent-ink: #0d1716; --warn-bg: #3a2a12; --warn: #ffb867; --bad: #ff8a80; --ok: #81c784;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink);
+    font: 17px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; -webkit-text-size-adjust: 100%; }
+  header { position: sticky; top: 0; z-index: 5; background: var(--bg);
+    padding: calc(env(safe-area-inset-top) + 10px) 16px 8px; border-bottom: 1px solid var(--line); }
+  header h1 { margin: 0; font-size: 20px; }
+  nav { display: flex; gap: 6px; margin-top: 8px; }
+  nav button { flex: 1; padding: 9px 4px; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--card); color: var(--ink); font-size: 15px; }
+  nav button.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+  main { padding: 14px 16px calc(env(safe-area-inset-bottom) + 30px); max-width: 640px; margin: 0 auto; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin-bottom: 14px; }
+  .card h2 { margin: 0 0 10px; font-size: 17px; }
+  label.f { display: block; font-size: 14px; color: var(--muted); margin: 10px 0 4px; }
+  input, textarea { width: 100%; font: inherit; color: var(--ink); background: var(--bg);
+    border: 1px solid var(--line); border-radius: 10px; padding: 10px; }
+  textarea { min-height: 96px; }
+  input[type=time], input[type=date] { min-height: 44px; -webkit-appearance: none; appearance: none; }
+  .shift { display: grid; grid-template-columns: 1fr auto 1fr auto; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .shift .dash { color: var(--muted); }
+  .shift input { min-width: 0; }
+  .tcell { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .now { padding: 7px 0; border-radius: 10px; border: 1px solid var(--accent); background: transparent;
+    color: var(--accent); font: inherit; font-size: 15px; font-weight: 600; }
+  .x { width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg);
+    color: var(--muted); font-size: 18px; }
+  .shiftmeta { font-size: 14px; color: var(--muted); margin: -4px 0 10px; }
+  .btn { display: block; width: 100%; padding: 13px; border-radius: 12px; font: inherit; font-weight: 600;
+    border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink); margin-top: 10px; }
+  .btn.ghost { background: transparent; color: var(--accent); }
+  .btn:disabled { opacity: .4; }
+  .row { display: flex; justify-content: space-between; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); }
+  .row:first-of-type { border-top: 0; }
+  .row .l { font-weight: 600; }
+  .row .s { color: var(--muted); font-size: 15px; }
+  .row .r { text-align: right; white-space: nowrap; }
+  .tap { cursor: pointer; }
+  .total { display: flex; justify-content: space-between; font-weight: 700; padding-top: 10px; border-top: 2px solid var(--line); }
+  .warn { background: var(--warn-bg); color: var(--warn); border-radius: 10px; padding: 10px 12px; font-size: 15px; margin: 8px 0; }
+  .bad { color: var(--bad); }
+  .saved { color: var(--ok); font-size: 14px; min-height: 18px; }
+  .hint { color: var(--muted); font-size: 14px; }
+  /* Invoice preview - a paper look so she sees what the employer sees */
+  .paper { background: #fff; color: #111; border-radius: 6px; padding: 18px; font: 13px/1.45 Arial, Helvetica, sans-serif;
+    box-shadow: 0 1px 4px rgba(0,0,0,.15); }
+  .paper .top { display: flex; justify-content: space-between; gap: 12px; }
+  .paper .top div { white-space: pre-line; }
+  .paper h3 { text-align: center; font-size: 20px; margin: 16px 0; letter-spacing: 1px; }
+  .paper table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+  .paper th, .paper td { text-align: left; padding: 3px 4px; border-bottom: 1px solid #ddd; }
+  .paper td.n, .paper th.n { text-align: right; }
+  .paper .kv { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; margin: 8px 0; }
+  .paper .due { font-weight: 700; font-size: 15px; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title">My Hours</h1>
+  <nav>
+    <button data-tab="log" class="on">Hours</button>
+    <button data-tab="review">Invoice</button>
+    <button data-tab="history">Sent</button>
+    <button data-tab="settings">Details</button>
+  </nav>
+</header>
+<main>
+  <!-- HOURS -->
+  <section id="tab-log">
+    <div class="card">
+      <h2>Log a day</h2>
+      <label class="f" for="logDate">Date</label>
+      <input type="date" id="logDate">
+      <div id="dateNote"></div>
+      <label class="f">Start – Finish</label>
+      <div id="shifts"></div>
+      <button class="btn ghost" id="addShift">+ Add another shift (split day)</button>
+      <div class="saved" id="savedMsg"></div>
+    </div>
+    <div class="card">
+      <h2>Not yet invoiced</h2>
+      <div id="pending"></div>
+    </div>
+    <button class="btn" id="goReview">Review invoice →</button>
+  </section>
+
+  <!-- REVIEW -->
+  <section id="tab-review" class="hidden">
+    <div id="reviewProblems"></div>
+    <div class="paper" id="paper"></div>
+    <button class="btn" id="createBtn">Create invoice</button>
+    <p class="hint">Creating the invoice fixes its number and today's date, and clears these hours from the list. If you spot a mistake afterwards, use Undo on the Sent tab.</p>
+  </section>
+
+  <!-- DONE (after create) -->
+  <section id="tab-done" class="hidden">
+    <div class="card">
+      <h2 id="doneTitle">Invoice created</h2>
+      <p id="doneText" class="hint"></p>
+      <button class="btn" id="shareBtn">Email / share PDF</button>
+      <button class="btn ghost" id="saveBtn">Save PDF to Files</button>
+    </div>
+  </section>
+
+  <!-- HISTORY -->
+  <section id="tab-history" class="hidden">
+    <div class="card">
+      <h2>Invoices created</h2>
+      <div id="historyList"></div>
+    </div>
+  </section>
+
+  <!-- SETTINGS -->
+  <section id="tab-settings" class="hidden">
+    <div class="card">
+      <h2>Your details (set once)</h2>
+      <label class="f" for="s_yourName">Your name as it appears on the invoice</label>
+      <input id="s_yourName" autocomplete="name">
+      <label class="f" for="s_yourAddress">Your address</label>
+      <textarea id="s_yourAddress" autocomplete="street-address"></textarea>
+      <label class="f" for="s_accName">Bank account name</label>
+      <input id="s_accName">
+      <label class="f" for="s_accNo">Account number</label>
+      <input id="s_accNo" inputmode="numeric">
+      <label class="f" for="s_sortCode">Sort code</label>
+      <input id="s_sortCode" inputmode="numeric" placeholder="00-00-00">
+    </div>
+    <div class="card">
+      <h2>Employer &amp; rate</h2>
+      <label class="f" for="s_employer">Bill to (employer name and address)</label>
+      <textarea id="s_employer"></textarea>
+      <label class="f" for="s_service">Services</label>
+      <input id="s_service">
+      <label class="f" for="s_rate">Rate per hour (£)</label>
+      <input id="s_rate" type="number" inputmode="decimal" step="0.01" min="0">
+      <label class="f" for="s_nextNo">Next invoice number</label>
+      <input id="s_nextNo" type="number" inputmode="numeric" step="1" min="1">
+      <p class="hint">Goes up by one each time an invoice is created. Only change it if the sequence ever needs correcting.</p>
+      <div class="saved" id="settingsSaved"></div>
+    </div>
+  </section>
+</main>
+
+<script src="jspdf.umd.min.js"></script>
+<script>
+'use strict';
+/* ---------- storage ---------- */
+const KEY = 'adoraHours.v1';
+const DEFAULTS = {
+  settings: {
+    yourName: '', yourAddress: '', accName: '', accNo: '', sortCode: '',
+    employer: 'My Tutor Club Ltd\nDancastle Court\n14 Arcadia Ave\nLondon\nN3 2JU',
+    service: 'Cleaning and Childcare', rate: 13, nextNo: 56
+  },
+  days: {},       // 'YYYY-MM-DD' -> [{s:'08:30', f:'16:30'}]  (not yet invoiced)
+  invoices: []    // created invoices, newest last
+};
+let db;
+function load() {
+  try { db = JSON.parse(localStorage.getItem(KEY)); } catch (e) { db = null; }
+  if (!db) db = JSON.parse(JSON.stringify(DEFAULTS));
+  db.settings = Object.assign({}, DEFAULTS.settings, db.settings);
+  db.days = db.days || {}; db.invoices = db.invoices || [];
+}
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(db)); return true; }
+  catch (e) { alert('Could not save on this phone: ' + e.message); return false; }
+}
+load();
+if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+
+/* ---------- helpers ---------- */
+const $ = id => document.getElementById(id);
+const pad = n => String(n).padStart(2, '0');
+const ymd = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const todayStr = () => ymd(new Date());
+const parseYmd = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MON = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const shortDate = s => { const d = parseYmd(s); return DOW[d.getDay()] + ' ' + d.getDate() + ' ' + MON[d.getMonth()].slice(0, 3); };
+const tableDate = s => { const d = parseYmd(s); return DOW[d.getDay()] + ' ' + pad(d.getDate()) + '/' + pad(d.getMonth() + 1) + '/' + d.getFullYear(); };
+const longDate = s => { const d = parseYmd(s); return d.getDate() + ' ' + MON[d.getMonth()] + ' ' + d.getFullYear(); };
+const mins = t => { if (!t) return null; const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+const shiftMins = sh => (sh.s && sh.f && mins(sh.f) > mins(sh.s)) ? mins(sh.f) - mins(sh.s) : 0;
+// Current time rounded to the nearest 5 minutes (never past 23:55).
+const nowRounded = () => { const d = new Date(); const m = Math.min(1435, Math.round((d.getHours() * 60 + d.getMinutes()) / 5) * 5);
+  return pad(Math.floor(m / 60)) + ':' + pad(m % 60); };
+const hrs = m => (m / 60).toFixed(2);
+const money = v => '£' + v.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+const totalDue = (m, rate) => Math.round(m * rate / 60 * 100) / 100;
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+/* Problems on a day: these block invoicing so a bad number can't reach the employer. */
+function dayProblems(list) {
+  const p = [];
+  list.forEach((sh, i) => {
+    if (sh.s && !sh.f) p.push('shift ' + (i + 1) + ' needs a finish time');
+    else if (!sh.s && sh.f) p.push('shift ' + (i + 1) + ' has no start time');
+    else if (sh.s && sh.f && mins(sh.f) <= mins(sh.s)) p.push('shift ' + (i + 1) + ' finishes before it starts');
+  });
+  const ok = list.filter(sh => shiftMins(sh) > 0).sort((a, b) => mins(a.s) - mins(b.s));
+  for (let i = 1; i < ok.length; i++) if (mins(ok[i].s) < mins(ok[i - 1].f)) p.push('two shifts overlap');
+  return p;
+}
+const invoicedOn = date => db.invoices.filter(inv => inv.rows.some(r => r.d === date)).map(inv => inv.no);
+
+/* ---------- tabs ---------- */
+function show(tab) {
+  ['log', 'review', 'done', 'history', 'settings'].forEach(t => $('tab-' + t).classList.toggle('hidden', t !== tab));
+  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === tab || (tab === 'done' && b.dataset.tab === 'review')));
+  if (tab === 'log') renderLog();
+  if (tab === 'review') renderReview();
+  if (tab === 'history') renderHistory();
+  if (tab === 'settings') renderSettings();
+  window.scrollTo(0, 0);
+}
+document.querySelectorAll('nav button').forEach(b => b.onclick = () => show(b.dataset.tab));
+$('goReview').onclick = () => show('review');
+
+/* ---------- HOURS tab ---------- */
+let savedTimer;
+function flashSaved(el) { el.textContent = 'Saved ✓'; clearTimeout(savedTimer); savedTimer = setTimeout(() => el.textContent = '', 1500); }
+$('logDate').value = todayStr();
+$('logDate').onchange = renderLog;
+
+let rows = [];  // shifts being edited for the chosen date
+function storeShifts() {
+  const d = $('logDate').value; if (!d) return;
+  const keep = rows.filter(sh => sh.s || sh.f).map(sh => ({ s: sh.s, f: sh.f }));
+  if (keep.length) db.days[d] = keep; else delete db.days[d];
+  if (save()) flashSaved($('savedMsg'));
+}
+function renderLog() {
+  const d = $('logDate').value || todayStr();
+  rows = (db.days[d] || []).map(sh => ({ s: sh.s, f: sh.f }));
+  if (!rows.length) rows.push({ s: '', f: '' });
+  const prev = invoicedOn(d);
+  $('dateNote').innerHTML = prev.length ? '<div class="warn">' + shortDate(d) + ' is already on invoice ' + prev.join(', ') + '. Only add hours here if they were missed off.</div>' : '';
+  drawRows(); renderPending();
+}
+function drawRows() {
+  const d = $('logDate').value || todayStr();
+  const box = $('shifts'); box.innerHTML = '';
+  rows.forEach((sh, i) => {
+    const row = document.createElement('div'); row.className = 'shift';
+    // "Now" only shows for today, so it can't stamp today's time onto another day.
+    const nowBtn = d === todayStr() ? '<button class="now">Now</button>' : '';
+    row.innerHTML = '<div class="tcell"><input type="time" aria-label="Start" value="' + sh.s + '">' + nowBtn + '</div><span class="dash">–</span>' +
+      '<div class="tcell"><input type="time" aria-label="Finish" value="' + sh.f + '">' + nowBtn + '</div><button class="x" aria-label="Remove shift">✕</button>';
+    const [sc, , fc, x] = row.children, s = sc.firstChild, f = fc.firstChild;
+    [[sc, s], [fc, f]].forEach(([cell, input]) => {
+      const b = cell.querySelector('.now');
+      if (b) b.onclick = () => { input.value = nowRounded(); input.onchange(); };
+    });
+    s.onchange = () => { sh.s = s.value; storeShifts(); renderMeta(); renderPending(); };
+    f.onchange = () => { sh.f = f.value; storeShifts(); renderMeta(); renderPending(); };
+    x.onclick = () => { rows.splice(i, 1); if (!rows.length) rows.push({ s: '', f: '' }); storeShifts(); drawRows(); renderPending(); };
+    box.appendChild(row);
+  });
+  const meta = document.createElement('div'); meta.className = 'shiftmeta'; box.appendChild(meta);
+  function renderMeta() {
+    const m = rows.reduce((a, sh) => a + shiftMins(sh), 0);
+    const p = dayProblems(rows.filter(sh => sh.s || sh.f));
+    meta.innerHTML = (m ? '<b>' + hrs(m) + ' hours</b> on ' + shortDate(d) : '') +
+      (p.length ? '<div class="bad">' + esc(p.join('; ')) + '</div>' : '');
+  }
+  renderMeta();
+}
+$('addShift').onclick = () => { rows.push({ s: '', f: '' }); drawRows(); };
+function renderPending() {
+  const dates = Object.keys(db.days).sort();
+  let total = 0;
+  const html = dates.map(d => {
+    const list = db.days[d], m = list.reduce((a, sh) => a + shiftMins(sh), 0); total += m;
+    const p = dayProblems(list);
+    return '<div class="row tap" data-d="' + d + '"><div><div class="l">' + shortDate(d) + '</div><div class="s">' +
+      list.map(sh => (sh.s || '?') + '–' + (sh.f || '?')).join(', ') + '</div>' +
+      (p.length ? '<div class="s bad">' + esc(p.join('; ')) + '</div>' : '') +
+      '</div><div class="r">' + hrs(m) + ' h</div></div>';
+  }).join('');
+  $('pending').innerHTML = dates.length
+    ? html + '<div class="total"><span>' + hrs(total) + ' hours</span><span>' + money(totalDue(total, +db.settings.rate || 0)) + '</span></div>'
+    : '<p class="hint">Nothing logged since the last invoice.</p>';
+  $('pending').querySelectorAll('[data-d]').forEach(el => el.onclick = () => { $('logDate').value = el.dataset.d; renderLog(); window.scrollTo(0, 0); });
+}
+
+/* ---------- invoice model, preview and PDF (one source for both) ---------- */
+function buildDraft() {
+  const s = db.settings, rows = [];
+  Object.keys(db.days).sort().forEach(d => db.days[d].slice().sort((a, b) => mins(a.s) - mins(b.s)).forEach(sh => rows.push({ d, s: sh.s, f: sh.f })));
+  const m = rows.reduce((a, r) => a + shiftMins(r), 0);
+  return { no: +s.nextNo, date: todayStr(), rate: +s.rate, service: s.service, rows, minutes: m, total: totalDue(m, +s.rate),
+    from: { yourName: s.yourName, yourAddress: s.yourAddress, accName: s.accName, accNo: s.accNo, sortCode: s.sortCode, employer: s.employer } };
+}
+function draftProblems(inv) {
+  const p = [], f = inv.from;
+  if (!inv.rows.length) p.push('No hours logged yet.');
+  Object.keys(db.days).forEach(d => { const dp = dayProblems(db.days[d]); if (dp.length) p.push(shortDate(d) + ': ' + dp.join('; ') + '.'); });
+  const missing = [['yourName', 'your name'], ['yourAddress', 'your address'], ['accName', 'account name'], ['accNo', 'account number'], ['sortCode', 'sort code'], ['employer', 'employer address']]
+    .filter(([k]) => !String(f[k] || '').trim()).map(([, l]) => l);
+  if (missing.length) p.push('Missing on the Details tab: ' + missing.join(', ') + '.');
+  if (!(inv.rate > 0)) p.push('Rate per hour is not set.');
+  if (!(inv.no > 0)) p.push('Next invoice number is not set.');
+  if (db.invoices.some(x => x.no === inv.no)) p.push('Invoice ' + inv.no + ' has already been created. Check the number on the Details tab.');
+  return p;
+}
+function paperHtml(inv, draft) {
+  const f = inv.from;
+  const rows = inv.rows.map((r, i) => {
+    const same = i > 0 && inv.rows[i - 1].d === r.d;
+    return '<tr><td>' + (same ? '' : tableDate(r.d)) + '</td><td>' + r.s + '</td><td>' + r.f + '</td><td class="n">' + hrs(shiftMins(r)) + '</td></tr>';
+  }).join('');
+  return '<div class="top"><div>' + esc(f.employer) + '</div><div style="text-align:right">' + esc(f.yourName) + '\n' + esc(f.yourAddress) + '</div></div>' +
+    '<div class="kv" style="margin-top:16px"><span>Date</span><b>' + longDate(inv.date) + '</b><span>Invoice No:</span><b>' + inv.no + (draft ? ' (draft)' : '') + '</b></div>' +
+    '<h3>INVOICE</h3>' +
+    '<div class="kv"><span>To our professional services rendered in</span><span>' + esc(inv.service) + '</span>' +
+    '<span>Total hours</span><span>' + hrs(inv.minutes) + '</span>' +
+    '<span>Rate per hour</span><span>' + money(inv.rate) + '</span>' +
+    '<span class="due">Total Due</span><span class="due">' + money(inv.total) + '</span></div>' +
+    '<p>Payment method: Online bank transfer as per account details below</p>' +
+    '<p>Account Name: ' + esc(f.accName) + '<br>Account Number: ' + esc(f.accNo) + '<br>Sort Code: ' + esc(f.sortCode) + '</p>' +
+    '<p>Please note all banking charges (if any) are payable by sender.</p>' +
+    '<table><thead><tr><th>Date</th><th>Start</th><th>Finish</th><th class="n">Hours</th></tr></thead><tbody>' + rows +
+    '<tr><td></td><td></td><td><b>Total</b></td><td class="n"><b>' + hrs(inv.minutes) + '</b></td></tr></tbody></table>';
+}
+function makePdf(inv) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const f = inv.from, L = 20, R = 190;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(11);
+  let y = 25;
+  f.employer.split('\n').forEach((t, i) => doc.text(t, L, y + i * 5.5));
+  [f.yourName].concat(f.yourAddress.split('\n')).forEach((t, i) => doc.text(t, R, y + i * 5.5, { align: 'right' }));
+  y = 70;
+  doc.text('Date', L, y); doc.text(longDate(inv.date), 60, y);
+  doc.text('Invoice No:', L, y + 7); doc.text(String(inv.no), 60, y + 7);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(20); doc.text('INVOICE', 105, 98, { align: 'center' });
+  doc.setFontSize(11); doc.setFont('helvetica', 'normal');
+  y = 112;
+  doc.text('To our professional services rendered in', L, y); doc.text(inv.service, 115, y);
+  doc.text('Total hours', L, y + 8); doc.text(hrs(inv.minutes), 115, y + 8);
+  doc.text('Rate per hour', L, y + 16); doc.text(money(inv.rate), 115, y + 16);
+  doc.setFont('helvetica', 'bold'); doc.text('Total Due', L, y + 24); doc.text(money(inv.total), 115, y + 24);
+  doc.setFont('helvetica', 'normal');
+  y = 150;
+  doc.text('Payment method: Online bank transfer as per account details below', L, y);
+  doc.text('Account Name: ' + f.accName, L, y + 9);
+  doc.text('Account Number: ' + f.accNo, L, y + 15);
+  doc.text('Sort Code: ' + f.sortCode, L, y + 21);
+  doc.text('Please note all banking charges (if any) are payable by sender.', L, y + 30);
+  y = 196;
+  const cols = [L, 75, 105, R];
+  const head = () => {
+    doc.setFont('helvetica', 'bold');
+    doc.text('Date', cols[0], y); doc.text('Start', cols[1], y); doc.text('Finish', cols[2], y); doc.text('Hours', cols[3], y, { align: 'right' });
+    doc.setFont('helvetica', 'normal'); doc.setDrawColor(150); doc.line(L, y + 2, R, y + 2); y += 7.5;
+  };
+  head();
+  inv.rows.forEach((r, i) => {
+    if (y > 280) { doc.addPage(); y = 25; head(); }
+    const same = i > 0 && inv.rows[i - 1].d === r.d;
+    if (!same) doc.text(tableDate(r.d), cols[0], y);
+    doc.text(r.s, cols[1], y); doc.text(r.f, cols[2], y); doc.text(hrs(shiftMins(r)), cols[3], y, { align: 'right' });
+    y += 6.5;
+  });
+  if (y > 280) { doc.addPage(); y = 25; }
+  doc.line(L, y - 4, R, y - 4);
+  doc.setFont('helvetica', 'bold'); doc.text('Total', cols[2], y + 1); doc.text(hrs(inv.minutes), cols[3], y + 1, { align: 'right' });
+  return doc;
+}
+const pdfName = inv => 'Invoice ' + inv.no + ' - ' + inv.from.yourName.replace(/^(Miss|Mrs|Ms|Mr|Mx)\.?\s+/i, '').replace(/[\\/:*?"<>|]/g, '') + '.pdf';
+
+async function sharePdf(inv) {
+  const blob = makePdf(inv).output('blob');
+  const file = new File([blob], pdfName(inv), { type: 'application/pdf' });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: 'Invoice ' + inv.no }); } catch (e) { /* cancelled */ }
+  } else downloadPdf(inv);
+}
+function downloadPdf(inv) { makePdf(inv).save(pdfName(inv)); }
+
+/* ---------- INVOICE tab ---------- */
+function renderReview() {
+  const inv = buildDraft(), p = draftProblems(inv);
+  $('reviewProblems').innerHTML = p.map(t => '<div class="warn">' + esc(t) + '</div>').join('');
+  $('paper').innerHTML = paperHtml(inv, true);
+  $('createBtn').textContent = 'Create invoice ' + inv.no + ' (' + money(inv.total) + ')';
+  $('createBtn').disabled = p.length > 0;
+}
+let lastCreated = null;
+$('createBtn').onclick = () => {
+  const inv = buildDraft();
+  if (draftProblems(inv).length) return renderReview();
+  db.invoices.push(inv); db.days = {}; db.settings.nextNo = inv.no + 1;
+  if (!save()) return;
+  lastCreated = inv;
+  $('doneTitle').textContent = 'Invoice ' + inv.no + ' created';
+  $('doneText').textContent = longDate(inv.date) + ' · ' + hrs(inv.minutes) + ' hours · ' + money(inv.total) + '. Tap below and choose Mail to send it to your employer.';
+  show('done');
+};
+$('shareBtn').onclick = () => lastCreated && sharePdf(lastCreated);
+$('saveBtn').onclick = () => lastCreated && downloadPdf(lastCreated);
+
+/* ---------- SENT tab ---------- */
+function renderHistory() {
+  const list = db.invoices.slice().reverse();
+  $('historyList').innerHTML = list.length ? list.map((inv, i) =>
+    '<div class="row"><div><div class="l">Invoice ' + inv.no + '</div><div class="s">' + longDate(inv.date) + ' · ' + hrs(inv.minutes) + ' h · ' + money(inv.total) + '</div></div>' +
+    '<div class="r"><button class="x" style="width:auto;padding:0 12px" data-pdf="' + inv.no + '">PDF</button>' +
+    (i === 0 ? ' <button class="x" style="width:auto;padding:0 12px" data-undo="' + inv.no + '">Undo</button>' : '') + '</div></div>'
+  ).join('') + '<div class="total"><span>Total invoiced here</span><span>' + money(db.invoices.reduce((a, x) => a + x.total, 0)) + '</span></div>'
+    : '<p class="hint">No invoices created in the app yet.</p>';
+  $('historyList').querySelectorAll('[data-pdf]').forEach(b => b.onclick = () => sharePdf(db.invoices.find(x => x.no === +b.dataset.pdf)));
+  $('historyList').querySelectorAll('[data-undo]').forEach(b => b.onclick = () => {
+    const inv = db.invoices[db.invoices.length - 1];
+    if (!confirm('Undo invoice ' + inv.no + '? Its hours go back to the Hours tab so you can fix them, and the number ' + inv.no + ' will be used again. Only do this if you have NOT sent it.')) return;
+    inv.rows.forEach(r => { (db.days[r.d] = db.days[r.d] || []).push({ s: r.s, f: r.f }); });
+    db.invoices.pop(); db.settings.nextNo = inv.no;
+    save(); show('log');
+  });
+}
+
+/* ---------- DETAILS tab ---------- */
+const SETTING_KEYS = ['yourName', 'yourAddress', 'accName', 'accNo', 'sortCode', 'employer', 'service', 'rate', 'nextNo'];
+function renderSettings() {
+  SETTING_KEYS.forEach(k => {
+    const el = $('s_' + k); el.value = db.settings[k];
+    el.oninput = () => {
+      db.settings[k] = (k === 'rate' || k === 'nextNo') ? (el.value === '' ? '' : +el.value) : el.value;
+      if (save()) flashSaved($('settingsSaved'));
+    };
+  });
+}
+
+/* ---------- start ---------- */
+const needsDetails = !db.settings.yourName || !db.settings.accNo;
+show(needsDetails ? 'settings' : 'log');
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+</script>
+</body>
+</html>
