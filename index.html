@@ -111,6 +111,7 @@
   <!-- REVIEW -->
   <section id="tab-review" class="hidden">
     <div id="reviewProblems"></div>
+    <div class="card" id="saveCard"></div>
     <div class="paper" id="paper"></div>
     <button class="btn" id="createBtn">Create invoice</button>
     <p class="hint">Creating the invoice fixes its number and today's date, and clears these hours from the list. If you spot a mistake afterwards, use Undo on the Sent tab.</p>
@@ -160,6 +161,12 @@
       <label class="f" for="s_nextNo">Next invoice number</label>
       <input id="s_nextNo" type="number" inputmode="numeric" step="1" min="1">
       <p class="hint">Goes up by one each time an invoice is created. Only change it if the sequence ever needs correcting.</p>
+    </div>
+    <div class="card">
+      <h2>Tax savings</h2>
+      <label class="f" for="s_yearEstimate">Expected earnings this tax year (£)</label>
+      <input id="s_yearEstimate" type="number" inputmode="decimal" step="100" min="0">
+      <p class="hint">Used to suggest how much of each invoice to put aside for income tax and National Insurance. Check it each April. The tax year runs 6 April to 5 April.</p>
       <div class="saved" id="settingsSaved"></div>
     </div>
   </section>
@@ -174,7 +181,8 @@ const DEFAULTS = {
   settings: {
     yourName: '', yourAddress: '', accName: '', accNo: '', sortCode: '',
     employer: 'My Tutor Club Ltd\nDancastle Court\n14 Arcadia Ave\nLondon\nN3 2JU',
-    service: 'Cleaning and Childcare', rate: 13, nextNo: 56
+    service: 'Cleaning and Childcare', rate: 13, nextNo: 56,
+    yearEstimate: 20000  // expected earnings this tax year, from her 2026/27 invoices so far
   },
   days: {},       // 'YYYY-MM-DD' -> [{s:'08:30', f:'16:30'}]  (not yet invoiced)
   invoices: []    // created invoices, newest last
@@ -209,6 +217,23 @@ const shiftMins = sh => (sh.s && sh.f && mins(sh.f) > mins(sh.s)) ? mins(sh.f) -
 // Current time rounded to the nearest 5 minutes (never past 23:55).
 const nowRounded = () => { const d = new Date(); const m = Math.min(1435, Math.round((d.getHours() * 60 + d.getMinutes()) / 5) * 5);
   return pad(Math.floor(m / 60)) + ':' + pad(m % 60); };
+/* Tax & NI set-aside. Self-employed, Scottish taxpayer, no student loan, no expenses claimed (so slightly cautious).
+   UPDATE EACH APRIL from gov.scot / gov.uk. Rates below are 2026/27 (6 Apr 2026 - 5 Apr 2027). */
+const TAX_YEAR = '2026/27';
+const PERSONAL_ALLOWANCE = 12570;      // tapers away above £100,000 - not modelled, far above her earnings
+const SCOT_BANDS = [                   // [upper limit of band in £ of total income, rate]
+  [16537, 0.19], [29526, 0.20], [43662, 0.21], [75000, 0.42], [125140, 0.45], [Infinity, 0.48]];
+const NI4 = { lower: 12570, upper: 50270, main: 0.06, above: 0.02 };  // Class 4. Class 2: nothing to pay - above the Small Profits Threshold it counts as paid automatically
+function taxAndNi(profit) {
+  let tax = 0, from = PERSONAL_ALLOWANCE;
+  for (const [to, rate] of SCOT_BANDS) { if (profit > from) tax += (Math.min(profit, to) - from) * rate; from = to; }
+  const ni = Math.max(0, Math.min(profit, NI4.upper) - NI4.lower) * NI4.main + Math.max(0, profit - NI4.upper) * NI4.above;
+  return { tax, ni, total: tax + ni };
+}
+// Same share of every invoice, so the pot fills evenly across the year. Rounded UP to whole pounds.
+function setAsideRate() { const est = +db.settings.yearEstimate || 0; return est > 0 ? taxAndNi(est).total / est : 0; }
+const pounds = v => money(v).replace(/\.00$/, '');
+const setAside = total => Math.ceil(total * setAsideRate());
 const hrs = m => (m / 60).toFixed(2);
 const money = v => '£' + v.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 const totalDue = (m, rate) => Math.round(m * rate / 60 * 100) / 100;
@@ -313,7 +338,8 @@ function buildDraft() {
   const s = db.settings, rows = [];
   Object.keys(db.days).sort().forEach(d => db.days[d].slice().sort((a, b) => mins(a.s) - mins(b.s)).forEach(sh => rows.push({ d, s: sh.s, f: sh.f })));
   const m = rows.reduce((a, r) => a + shiftMins(r), 0);
-  return { no: +s.nextNo, date: todayStr(), rate: +s.rate, service: s.service, rows, minutes: m, total: totalDue(m, +s.rate),
+  const total = totalDue(m, +s.rate);
+  return { no: +s.nextNo, date: todayStr(), rate: +s.rate, service: s.service, rows, minutes: m, total, setAside: setAside(total),
     from: { yourName: s.yourName, yourAddress: s.yourAddress, accName: s.accName, accNo: s.accNo, sortCode: s.sortCode, employer: s.employer } };
 }
 function draftProblems(inv) {
@@ -408,6 +434,13 @@ function renderReview() {
   const inv = buildDraft(), p = draftProblems(inv);
   $('reviewProblems').innerHTML = p.map(t => '<div class="warn">' + esc(t) + '</div>').join('');
   $('paper').innerHTML = paperHtml(inv, true);
+  const est = +db.settings.yearEstimate || 0, yr = taxAndNi(est);
+  $('saveCard').innerHTML = est > 0 && inv.total > 0
+    ? '<h2>Put aside for tax &amp; NI: ' + pounds(setAside(inv.total)) + '</h2>' +
+      '<p class="hint" style="margin:0">About ' + (setAsideRate() * 100).toFixed(1) + '% of this invoice. Based on earning about ' + pounds(est) +
+      ' in the ' + TAX_YEAR + ' tax year, which means roughly ' + pounds(Math.round(yr.tax)) + ' income tax + ' + pounds(Math.round(yr.ni)) +
+      ' National Insurance for the year. Not shown on the invoice. Change the yearly figure on the Details tab.</p>'
+    : '<p class="hint" style="margin:0">Add your expected yearly earnings on the Details tab to see how much to put aside for tax.</p>';
   $('createBtn').textContent = 'Create invoice ' + inv.no + ' (' + money(inv.total) + ')';
   $('createBtn').disabled = p.length > 0;
 }
@@ -419,7 +452,8 @@ $('createBtn').onclick = () => {
   if (!save()) return;
   lastCreated = inv;
   $('doneTitle').textContent = 'Invoice ' + inv.no + ' created';
-  $('doneText').textContent = longDate(inv.date) + ' · ' + hrs(inv.minutes) + ' hours · ' + money(inv.total) + '. Tap below and choose Mail to send it to your employer.';
+  $('doneText').textContent = longDate(inv.date) + ' · ' + hrs(inv.minutes) + ' hours · ' + money(inv.total) + '. Tap below and choose Mail to send it to your employer.' +
+    (inv.setAside ? ' When you are paid, move ' + pounds(inv.setAside) + ' into your tax savings account.' : '');
   show('done');
 };
 $('shareBtn').onclick = () => lastCreated && sharePdf(lastCreated);
@@ -429,10 +463,12 @@ $('saveBtn').onclick = () => lastCreated && downloadPdf(lastCreated);
 function renderHistory() {
   const list = db.invoices.slice().reverse();
   $('historyList').innerHTML = list.length ? list.map((inv, i) =>
-    '<div class="row"><div><div class="l">Invoice ' + inv.no + '</div><div class="s">' + longDate(inv.date) + ' · ' + hrs(inv.minutes) + ' h · ' + money(inv.total) + '</div></div>' +
+    '<div class="row"><div><div class="l">Invoice ' + inv.no + '</div><div class="s">' + longDate(inv.date) + ' · ' + hrs(inv.minutes) + ' h · ' + money(inv.total) +
+    (inv.setAside ? '<br>Tax pot: ' + pounds(inv.setAside) : '') + '</div></div>' +
     '<div class="r"><button class="x" style="width:auto;padding:0 12px" data-pdf="' + inv.no + '">PDF</button>' +
     (i === 0 ? ' <button class="x" style="width:auto;padding:0 12px" data-undo="' + inv.no + '">Undo</button>' : '') + '</div></div>'
-  ).join('') + '<div class="total"><span>Total invoiced here</span><span>' + money(db.invoices.reduce((a, x) => a + x.total, 0)) + '</span></div>'
+  ).join('') + '<div class="total"><span>Total invoiced here</span><span>' + money(db.invoices.reduce((a, x) => a + x.total, 0)) + '</span></div>' +
+    '<div class="total" style="border-top:0;font-weight:400"><span>Tax pot suggested</span><span>' + pounds(db.invoices.reduce((a, x) => a + (x.setAside || 0), 0)) + '</span></div>'
     : '<p class="hint">No invoices created in the app yet.</p>';
   $('historyList').querySelectorAll('[data-pdf]').forEach(b => b.onclick = () => sharePdf(db.invoices.find(x => x.no === +b.dataset.pdf)));
   $('historyList').querySelectorAll('[data-undo]').forEach(b => b.onclick = () => {
@@ -445,12 +481,12 @@ function renderHistory() {
 }
 
 /* ---------- DETAILS tab ---------- */
-const SETTING_KEYS = ['yourName', 'yourAddress', 'accName', 'accNo', 'sortCode', 'employer', 'service', 'rate', 'nextNo'];
+const SETTING_KEYS = ['yourName', 'yourAddress', 'accName', 'accNo', 'sortCode', 'employer', 'service', 'rate', 'nextNo', 'yearEstimate'];
 function renderSettings() {
   SETTING_KEYS.forEach(k => {
     const el = $('s_' + k); el.value = db.settings[k];
     el.oninput = () => {
-      db.settings[k] = (k === 'rate' || k === 'nextNo') ? (el.value === '' ? '' : +el.value) : el.value;
+      db.settings[k] = (k === 'rate' || k === 'nextNo' || k === 'yearEstimate') ? (el.value === '' ? '' : +el.value) : el.value;
       if (save()) flashSaved($('settingsSaved'));
     };
   });
