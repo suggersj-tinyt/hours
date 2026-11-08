@@ -1,5 +1,5 @@
 // Bump VERSION whenever any file changes so phones pick up the new copy.
-const VERSION = 'hours-v2';
+const VERSION = 'hours-v4';
 const FILES = ['./', './index.html', './manifest.json', './jspdf.umd.min.js', './icon-180.png', './icon-192.png', './icon-512.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(VERSION).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));
